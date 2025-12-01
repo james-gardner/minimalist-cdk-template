@@ -50,10 +50,10 @@ export class MinimalistCdkTemplateStack extends cdk.Stack {
     const rdsInstanceSize = props?.rdsInstanceSize ?? ec2.InstanceSize.MICRO;
     const databaseName = props?.databaseName ?? 'appdb';
 
-    // Create a VPC with 1 AZ (London region - eu-west-2a)
-    // The VPC will have 1 public subnet and 1 private subnet
+    // Create a VPC with 2 AZs (required for RDS subnet groups)
+    // The VPC will have public and private subnets in each AZ
     this.vpc = new ec2.Vpc(this, 'Vpc', {
-      maxAzs: 1, // Use only 1 Availability Zone
+      maxAzs: 2, // RDS requires at least 2 AZs for the subnet group
       natGateways: 0, // No NAT Gateway to stay on free tier
       subnetConfiguration: [
         {
@@ -97,17 +97,17 @@ export class MinimalistCdkTemplateStack extends cdk.Stack {
       allowAllOutbound: false, // RDS doesn't need outbound access
     });
 
-    // Allow MySQL/Aurora traffic (port 3306) only from EC2 security group
+    // Allow PostgreSQL traffic (port 5432) only from EC2 security group
     rdsSecurityGroup.addIngressRule(
       ec2SecurityGroup,
-      ec2.Port.tcp(3306),
-      'Allow MySQL access from EC2 instance only'
+      ec2.Port.tcp(5432),
+      'Allow PostgreSQL access from EC2 instance only'
     );
 
-    // Create the RDS instance in the private subnet
+    // Create the RDS PostgreSQL instance in the private subnet
     this.database = new rds.DatabaseInstance(this, 'Database', {
-      engine: rds.DatabaseInstanceEngine.mysql({
-        version: rds.MysqlEngineVersion.VER_8_0,
+      engine: rds.DatabaseInstanceEngine.postgres({
+        version: rds.PostgresEngineVersion.VER_16,
       }),
       instanceType: ec2.InstanceType.of(rdsInstanceClass, rdsInstanceSize),
       vpc: this.vpc,
@@ -118,7 +118,7 @@ export class MinimalistCdkTemplateStack extends cdk.Stack {
       databaseName: databaseName,
       allocatedStorage: 20, // Minimum for free tier
       maxAllocatedStorage: 20, // Disable auto-scaling to stay on free tier
-      credentials: rds.Credentials.fromGeneratedSecret('admin'), // Auto-generate password
+      credentials: rds.Credentials.fromGeneratedSecret('postgres'), // Auto-generate password
       removalPolicy: cdk.RemovalPolicy.DESTROY, // For development - delete DB on stack deletion
       deleteAutomatedBackups: true, // Clean up backups on deletion
     });

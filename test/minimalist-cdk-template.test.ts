@@ -21,8 +21,8 @@ describe('MinimalistCdkTemplateStack', () => {
     });
   });
 
-  test('VPC has 1 public subnet', () => {
-    template.resourceCountIs('AWS::EC2::Subnet', 2); // 1 public + 1 private
+  test('VPC has 2 public subnets (one per AZ)', () => {
+    template.resourceCountIs('AWS::EC2::Subnet', 4); // 2 public + 2 private (for 2 AZs)
 
     // Check for public subnet with MapPublicIpOnLaunch
     template.hasResourceProperties('AWS::EC2::Subnet', {
@@ -30,7 +30,7 @@ describe('MinimalistCdkTemplateStack', () => {
     });
   });
 
-  test('VPC has 1 private subnet', () => {
+  test('VPC has 2 private subnets (one per AZ for RDS)', () => {
     template.hasResourceProperties('AWS::EC2::Subnet', {
       MapPublicIpOnLaunch: false,
     });
@@ -114,9 +114,9 @@ describe('MinimalistCdkTemplateStack', () => {
   });
 
   // RDS Tests
-  test('RDS instance is created with MySQL engine', () => {
+  test('RDS instance is created with PostgreSQL engine', () => {
     template.hasResourceProperties('AWS::RDS::DBInstance', {
-      Engine: 'mysql',
+      Engine: 'postgres',
       DBInstanceClass: 'db.t3.micro',
     });
   });
@@ -129,11 +129,11 @@ describe('MinimalistCdkTemplateStack', () => {
   });
 
   test('RDS security group only allows access from EC2 security group', () => {
-    // Find the RDS security group ingress rule
+    // Find the RDS security group ingress rule for PostgreSQL port
     template.hasResourceProperties('AWS::EC2::SecurityGroupIngress', {
       IpProtocol: 'tcp',
-      FromPort: 3306,
-      ToPort: 3306,
+      FromPort: 5432,
+      ToPort: 5432,
       // Should reference the EC2 security group, not a CIDR
       SourceSecurityGroupId: Match.anyValue(),
     });
@@ -142,7 +142,7 @@ describe('MinimalistCdkTemplateStack', () => {
   test('RDS has auto-generated credentials secret', () => {
     template.hasResourceProperties('AWS::SecretsManager::Secret', {
       GenerateSecretString: Match.objectLike({
-        SecretStringTemplate: Match.stringLikeRegexp('admin'),
+        SecretStringTemplate: Match.stringLikeRegexp('postgres'),
       }),
     });
   });

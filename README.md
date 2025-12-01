@@ -1,17 +1,17 @@
 # Minimalist CDK Template
 
-AWS CDK TypeScript project that creates a VPC with an EC2 instance and RDS database for the London region (eu-west-2).
+AWS CDK TypeScript project that creates a VPC with an EC2 instance and RDS PostgreSQL database for the London region (eu-west-2).
 
 ## Architecture
 
 This stack creates:
 
-- **VPC** with a single Availability Zone
-- **Public Subnet** (CIDR: 10.0.0.0/24) with auto-assign public IP
-- **Private Subnet** (CIDR: 10.0.1.0/24) - isolated, no NAT gateway
+- **VPC** with 2 Availability Zones (required for RDS subnet groups)
+- **Public Subnets** with auto-assign public IP
+- **Private Subnets** - isolated, no NAT gateway
 - **EC2 Instance** (default: t3.micro for free tier eligibility) in the public subnet
 - **SSM Session Manager** access enabled (no SSH ports opened)
-- **RDS MySQL Database** (default: db.t3.micro) in the private subnet
+- **RDS PostgreSQL Database** (default: db.t3.micro) in the private subnet
   - Only accessible from the EC2 instance via security groups
   - Auto-generated credentials stored in AWS Secrets Manager
 
@@ -21,7 +21,7 @@ This stack creates:
 - Uses db.t3.micro RDS instance type (free tier eligible)
 - 20GB RDS storage (free tier eligible)
 - No NAT Gateway (saves costs)
-- Single AZ deployment
+- Single instance RDS (not Multi-AZ)
 
 ## Configuration
 
@@ -70,9 +70,9 @@ The RDS database is only accessible from the EC2 instance. To connect:
    ```bash
    aws secretsmanager get-secret-value --secret-id <RdsSecretArn> --query SecretString --output text
    ```
-3. Connect to the database using the MySQL client:
+3. Connect to the database using the PostgreSQL client:
    ```bash
-   mysql -h <RdsEndpoint> -u admin -p
+   psql -h <RdsEndpoint> -U postgres -d appdb
    ```
 
 ## Useful commands
