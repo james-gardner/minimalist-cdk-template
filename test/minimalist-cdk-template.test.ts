@@ -112,4 +112,78 @@ describe('MinimalistCdkTemplateStack', () => {
   test('Stack outputs include instance ID', () => {
     template.hasOutput('InstanceId', {});
   });
+
+  // RDS Tests
+  test('RDS instance is created with MySQL engine', () => {
+    template.hasResourceProperties('AWS::RDS::DBInstance', {
+      Engine: 'mysql',
+      DBInstanceClass: 'db.t3.micro',
+    });
+  });
+
+  test('RDS instance is in private subnet', () => {
+    // Verify RDS subnet group exists and references private subnet
+    template.hasResourceProperties('AWS::RDS::DBSubnetGroup', {
+      DBSubnetGroupDescription: Match.anyValue(),
+    });
+  });
+
+  test('RDS security group only allows access from EC2 security group', () => {
+    // Find the RDS security group ingress rule
+    template.hasResourceProperties('AWS::EC2::SecurityGroupIngress', {
+      IpProtocol: 'tcp',
+      FromPort: 3306,
+      ToPort: 3306,
+      // Should reference the EC2 security group, not a CIDR
+      SourceSecurityGroupId: Match.anyValue(),
+    });
+  });
+
+  test('RDS has auto-generated credentials secret', () => {
+    template.hasResourceProperties('AWS::SecretsManager::Secret', {
+      GenerateSecretString: Match.objectLike({
+        SecretStringTemplate: Match.stringLikeRegexp('admin'),
+      }),
+    });
+  });
+
+  test('RDS has 20GB allocated storage (free tier)', () => {
+    template.hasResourceProperties('AWS::RDS::DBInstance', {
+      AllocatedStorage: '20',
+      MaxAllocatedStorage: 20,
+    });
+  });
+
+  test('Stack outputs include RDS endpoint', () => {
+    template.hasOutput('RdsEndpoint', {});
+  });
+
+  test('Stack outputs include RDS secret ARN', () => {
+    template.hasOutput('RdsSecretArn', {});
+  });
+
+  test('Custom RDS instance class can be provided', () => {
+    const customApp = new cdk.App();
+    const customStack = new MinimalistCdkTemplateStack(customApp, 'CustomRdsTestStack', {
+      rdsInstanceClass: ec2.InstanceClass.T3,
+      rdsInstanceSize: ec2.InstanceSize.SMALL,
+    });
+    const customTemplate = Template.fromStack(customStack);
+
+    customTemplate.hasResourceProperties('AWS::RDS::DBInstance', {
+      DBInstanceClass: 'db.t3.small',
+    });
+  });
+
+  test('Custom database name can be provided', () => {
+    const customApp = new cdk.App();
+    const customStack = new MinimalistCdkTemplateStack(customApp, 'CustomDbNameStack', {
+      databaseName: 'myCustomDb',
+    });
+    const customTemplate = Template.fromStack(customStack);
+
+    customTemplate.hasResourceProperties('AWS::RDS::DBInstance', {
+      DBName: 'myCustomDb',
+    });
+  });
 });

@@ -1,6 +1,6 @@
 # Minimalist CDK Template
 
-AWS CDK TypeScript project that creates a VPC with an EC2 instance for the London region (eu-west-2).
+AWS CDK TypeScript project that creates a VPC with an EC2 instance and RDS database for the London region (eu-west-2).
 
 ## Architecture
 
@@ -11,10 +11,15 @@ This stack creates:
 - **Private Subnet** (CIDR: 10.0.1.0/24) - isolated, no NAT gateway
 - **EC2 Instance** (default: t3.micro for free tier eligibility) in the public subnet
 - **SSM Session Manager** access enabled (no SSH ports opened)
+- **RDS MySQL Database** (default: db.t3.micro) in the private subnet
+  - Only accessible from the EC2 instance via security groups
+  - Auto-generated credentials stored in AWS Secrets Manager
 
 ## Free Tier Considerations
 
-- Uses t3.micro instance type (free tier eligible)
+- Uses t3.micro EC2 instance type (free tier eligible)
+- Uses db.t3.micro RDS instance type (free tier eligible)
+- 20GB RDS storage (free tier eligible)
 - No NAT Gateway (saves costs)
 - Single AZ deployment
 
@@ -24,11 +29,23 @@ The stack accepts the following optional props:
 
 ### Instance Type
 
-The instance type is parameterized and can be changed by passing a different `instanceType` prop:
+The EC2 instance type is parameterized and can be changed:
 
 ```typescript
 new MinimalistCdkTemplateStack(app, 'MinimalistCdkTemplateStack', {
   instanceType: ec2.InstanceType.of(ec2.InstanceClass.T2, ec2.InstanceSize.SMALL),
+});
+```
+
+### RDS Configuration
+
+The RDS instance class, size, and database name can be customized:
+
+```typescript
+new MinimalistCdkTemplateStack(app, 'MinimalistCdkTemplateStack', {
+  rdsInstanceClass: ec2.InstanceClass.T3,
+  rdsInstanceSize: ec2.InstanceSize.SMALL,
+  databaseName: 'myCustomDb',
 });
 ```
 
@@ -43,6 +60,20 @@ aws ssm start-session --target <instance-id>
 ```
 
 Or use the AWS Console: EC2 → Instances → Select Instance → Connect → Session Manager
+
+## Accessing the Database
+
+The RDS database is only accessible from the EC2 instance. To connect:
+
+1. Connect to the EC2 instance via SSM Session Manager
+2. Retrieve the database credentials from Secrets Manager:
+   ```bash
+   aws secretsmanager get-secret-value --secret-id <RdsSecretArn> --query SecretString --output text
+   ```
+3. Connect to the database using the MySQL client:
+   ```bash
+   mysql -h <RdsEndpoint> -u admin -p
+   ```
 
 ## Useful commands
 
@@ -65,3 +96,5 @@ Or use the AWS Console: EC2 → Instances → Select Instance → Connect → Se
 After deployment, the stack outputs:
 - `InstancePublicIp` - Public IP address of the EC2 instance
 - `InstanceId` - Instance ID of the EC2 instance (use this with SSM)
+- `RdsEndpoint` - RDS database endpoint address
+- `RdsSecretArn` - ARN of the secret containing RDS credentials

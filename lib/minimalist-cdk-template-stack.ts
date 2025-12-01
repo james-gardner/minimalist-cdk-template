@@ -1,5 +1,6 @@
 import * as cdk from 'aws-cdk-lib/core';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
+import * as rds from 'aws-cdk-lib/aws-rds';
 import { Construct } from 'constructs';
 
 export interface MinimalistCdkTemplateStackProps extends cdk.StackProps {
@@ -8,6 +9,24 @@ export interface MinimalistCdkTemplateStackProps extends cdk.StackProps {
    * @default ec2.InstanceType.of(ec2.InstanceClass.T3, ec2.InstanceSize.MICRO)
    */
   readonly instanceType?: ec2.InstanceType;
+
+  /**
+   * The RDS instance class to use. Defaults to db.t3.micro for free tier eligibility.
+   * @default ec2.InstanceClass.T3
+   */
+  readonly rdsInstanceClass?: ec2.InstanceClass;
+
+  /**
+   * The RDS instance size to use. Defaults to MICRO for free tier eligibility.
+   * @default ec2.InstanceSize.MICRO
+   */
+  readonly rdsInstanceSize?: ec2.InstanceSize;
+
+  /**
+   * The database name to create.
+   * @default 'appdb'
+   */
+  readonly databaseName?: string;
 }
 
 export class MinimalistCdkTemplateStack extends cdk.Stack {
@@ -17,11 +36,19 @@ export class MinimalistCdkTemplateStack extends cdk.Stack {
   /** The EC2 instance created by this stack */
   public readonly instance: ec2.Instance;
 
+  /** The RDS database instance created by this stack */
+  public readonly database: rds.DatabaseInstance;
+
   constructor(scope: Construct, id: string, props?: MinimalistCdkTemplateStackProps) {
     super(scope, id, props);
 
     // Use t3.micro by default for free tier eligibility
     const instanceType = props?.instanceType ?? ec2.InstanceType.of(ec2.InstanceClass.T3, ec2.InstanceSize.MICRO);
+
+    // RDS instance configuration - defaults to db.t3.micro for free tier
+    const rdsInstanceClass = props?.rdsInstanceClass ?? ec2.InstanceClass.T3;
+    const rdsInstanceSize = props?.rdsInstanceSize ?? ec2.InstanceSize.MICRO;
+    const databaseName = props?.databaseName ?? 'appdb';
 
     // Create a VPC with 1 AZ (London region - eu-west-2a)
     // The VPC will have 1 public subnet and 1 private subnet
@@ -42,6 +69,13 @@ export class MinimalistCdkTemplateStack extends cdk.Stack {
       ],
     });
 
+    // Create a security group for the EC2 instance
+    const ec2SecurityGroup = new ec2.SecurityGroup(this, 'Ec2SecurityGroup', {
+      vpc: this.vpc,
+      description: 'Security group for EC2 instance',
+      allowAllOutbound: true,
+    });
+
     // Create an EC2 instance in the public subnet with SSM Session Manager access
     // No SSH port needs to be opened - access is via AWS Systems Manager
     this.instance = new ec2.Instance(this, 'Instance', {
@@ -51,7 +85,42 @@ export class MinimalistCdkTemplateStack extends cdk.Stack {
       vpcSubnets: {
         subnetType: ec2.SubnetType.PUBLIC,
       },
+      securityGroup: ec2SecurityGroup,
       ssmSessionPermissions: true, // Enable SSM Session Manager access
+    });
+
+    // Create a security group for the RDS instance
+    // Only allows access from the EC2 instance's security group
+    const rdsSecurityGroup = new ec2.SecurityGroup(this, 'RdsSecurityGroup', {
+      vpc: this.vpc,
+      description: 'Security group for RDS instance - only accessible from EC2',
+      allowAllOutbound: false, // RDS doesn't need outbound access
+    });
+
+    // Allow MySQL/Aurora traffic (port 3306) only from EC2 security group
+    rdsSecurityGroup.addIngressRule(
+      ec2SecurityGroup,
+      ec2.Port.tcp(3306),
+      'Allow MySQL access from EC2 instance only'
+    );
+
+    // Create the RDS instance in the private subnet
+    this.database = new rds.DatabaseInstance(this, 'Database', {
+      engine: rds.DatabaseInstanceEngine.mysql({
+        version: rds.MysqlEngineVersion.VER_8_0,
+      }),
+      instanceType: ec2.InstanceType.of(rdsInstanceClass, rdsInstanceSize),
+      vpc: this.vpc,
+      vpcSubnets: {
+        subnetType: ec2.SubnetType.PRIVATE_ISOLATED,
+      },
+      securityGroups: [rdsSecurityGroup],
+      databaseName: databaseName,
+      allocatedStorage: 20, // Minimum for free tier
+      maxAllocatedStorage: 20, // Disable auto-scaling to stay on free tier
+      credentials: rds.Credentials.fromGeneratedSecret('admin'), // Auto-generate password
+      removalPolicy: cdk.RemovalPolicy.DESTROY, // For development - delete DB on stack deletion
+      deleteAutomatedBackups: true, // Clean up backups on deletion
     });
 
     // Output the instance public IP
@@ -64,6 +133,18 @@ export class MinimalistCdkTemplateStack extends cdk.Stack {
     new cdk.CfnOutput(this, 'InstanceId', {
       value: this.instance.instanceId,
       description: 'Instance ID of the EC2 instance',
+    });
+
+    // Output the RDS endpoint
+    new cdk.CfnOutput(this, 'RdsEndpoint', {
+      value: this.database.dbInstanceEndpointAddress,
+      description: 'RDS database endpoint address',
+    });
+
+    // Output the RDS secret ARN (contains credentials)
+    new cdk.CfnOutput(this, 'RdsSecretArn', {
+      value: this.database.secret?.secretArn ?? 'N/A',
+      description: 'ARN of the secret containing RDS credentials',
     });
   }
 }
