@@ -70,9 +70,10 @@ export class MinimalistCdkTemplateStack extends cdk.Stack {
     const databaseName = props?.databaseName ?? 'appdb';
     const allocatedStorage = props?.allocatedStorage ?? 20;
 
-    // VPC configuration
+    // VPC configuration with validation
     const vpcCidr = props?.vpcCidr ?? '10.0.0.0/16';
-    const maxAzs = props?.maxAzs ?? 2;
+    // Ensure maxAzs is at least 2 (required for RDS subnet groups)
+    const maxAzs = Math.max(props?.maxAzs ?? 2, 2);
 
     // Create a VPC with configurable AZs (minimum 2 required for RDS subnet groups)
     // The VPC will have public and private subnets in each AZ
