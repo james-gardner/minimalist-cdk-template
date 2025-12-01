@@ -20,6 +20,10 @@ This stack creates:
 
 ## Configuration
 
+The stack accepts the following optional props:
+
+### Instance Type
+
 The instance type is parameterized and can be changed by passing a different `instanceType` prop:
 
 ```typescript
@@ -27,6 +31,20 @@ new MinimalistCdkTemplateStack(app, 'MinimalistCdkTemplateStack', {
   instanceType: ec2.InstanceType.of(ec2.InstanceClass.T2, ec2.InstanceSize.SMALL),
 });
 ```
+
+### SSH Access (Security)
+
+By default, SSH access is allowed from anywhere (0.0.0.0/0). **This is NOT recommended for production environments.** 
+
+You can restrict SSH access to specific IP ranges:
+
+```typescript
+new MinimalistCdkTemplateStack(app, 'MinimalistCdkTemplateStack', {
+  sshCidr: '192.168.1.0/24', // Only allow SSH from this CIDR range
+});
+```
+
+**Security Recommendation:** Consider using AWS Systems Manager Session Manager for secure access instead of opening SSH ports.
 
 ## Useful commands
 

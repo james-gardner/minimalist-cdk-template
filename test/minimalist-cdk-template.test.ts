@@ -84,6 +84,25 @@ describe('MinimalistCdkTemplateStack', () => {
     });
   });
 
+  test('Custom SSH CIDR can be provided', () => {
+    const customApp = new cdk.App();
+    const customStack = new MinimalistCdkTemplateStack(customApp, 'CustomSshTestStack', {
+      sshCidr: '10.0.0.0/8',
+    });
+    const customTemplate = Template.fromStack(customStack);
+
+    customTemplate.hasResourceProperties('AWS::EC2::SecurityGroup', {
+      SecurityGroupIngress: Match.arrayWith([
+        Match.objectLike({
+          IpProtocol: 'tcp',
+          FromPort: 22,
+          ToPort: 22,
+          CidrIp: '10.0.0.0/8',
+        }),
+      ]),
+    });
+  });
+
   test('Stack outputs include instance public IP', () => {
     template.hasOutput('InstancePublicIp', {});
   });

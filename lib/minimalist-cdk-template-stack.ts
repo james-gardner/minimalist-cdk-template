@@ -8,6 +8,14 @@ export interface MinimalistCdkTemplateStackProps extends cdk.StackProps {
    * @default ec2.InstanceType.of(ec2.InstanceClass.T3, ec2.InstanceSize.MICRO)
    */
   readonly instanceType?: ec2.InstanceType;
+
+  /**
+   * The CIDR range to allow SSH access from. For production, restrict this to
+   * your organization's IP range. Consider using AWS Systems Manager Session
+   * Manager instead of SSH for more secure access.
+   * @default '0.0.0.0/0' (allows SSH from anywhere - NOT recommended for production)
+   */
+  readonly sshCidr?: string;
 }
 
 export class MinimalistCdkTemplateStack extends cdk.Stack {
@@ -22,6 +30,9 @@ export class MinimalistCdkTemplateStack extends cdk.Stack {
 
     // Use t3.micro by default for free tier eligibility
     const instanceType = props?.instanceType ?? ec2.InstanceType.of(ec2.InstanceClass.T3, ec2.InstanceSize.MICRO);
+
+    // SSH CIDR - defaults to 0.0.0.0/0 but should be restricted in production
+    const sshCidr = props?.sshCidr ?? '0.0.0.0/0';
 
     // Create a VPC with 1 AZ (London region - eu-west-2a)
     // The VPC will have 1 public subnet and 1 private subnet
@@ -49,11 +60,12 @@ export class MinimalistCdkTemplateStack extends cdk.Stack {
       allowAllOutbound: true,
     });
 
-    // Allow SSH access (port 22) from anywhere
+    // Allow SSH access (port 22) from the specified CIDR range
+    // WARNING: Default allows access from anywhere. Restrict this in production.
     securityGroup.addIngressRule(
-      ec2.Peer.anyIpv4(),
+      ec2.Peer.ipv4(sshCidr),
       ec2.Port.tcp(22),
-      'Allow SSH access from anywhere'
+      `Allow SSH access from ${sshCidr}`
     );
 
     // Create an EC2 instance in the public subnet
