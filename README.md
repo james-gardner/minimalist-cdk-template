@@ -10,7 +10,7 @@ This stack creates:
 - **Public Subnet** (CIDR: 10.0.0.0/24) with auto-assign public IP
 - **Private Subnet** (CIDR: 10.0.1.0/24) - isolated, no NAT gateway
 - **EC2 Instance** (default: t3.micro for free tier eligibility) in the public subnet
-- **Security Group** allowing SSH access (port 22)
+- **SSM Session Manager** access enabled (no SSH ports opened)
 
 ## Free Tier Considerations
 
@@ -32,19 +32,17 @@ new MinimalistCdkTemplateStack(app, 'MinimalistCdkTemplateStack', {
 });
 ```
 
-### SSH Access (Security)
+## Accessing the Instance
 
-By default, SSH access is allowed from anywhere (0.0.0.0/0). **This is NOT recommended for production environments.** 
+This stack uses **AWS Systems Manager Session Manager** for secure access instead of SSH. No ports are opened in the security group.
 
-You can restrict SSH access to specific IP ranges:
+To connect to the instance:
 
-```typescript
-new MinimalistCdkTemplateStack(app, 'MinimalistCdkTemplateStack', {
-  sshCidr: '192.168.1.0/24', // Only allow SSH from this CIDR range
-});
+```bash
+aws ssm start-session --target <instance-id>
 ```
 
-**Security Recommendation:** Consider using AWS Systems Manager Session Manager for secure access instead of opening SSH ports.
+Or use the AWS Console: EC2 → Instances → Select Instance → Connect → Session Manager
 
 ## Useful commands
 
@@ -60,9 +58,10 @@ new MinimalistCdkTemplateStack(app, 'MinimalistCdkTemplateStack', {
 - AWS CLI configured with appropriate credentials
 - Node.js and npm installed
 - CDK bootstrapped in your AWS account (`npx cdk bootstrap`)
+- Session Manager plugin installed for AWS CLI (for `aws ssm start-session`)
 
 ## Outputs
 
 After deployment, the stack outputs:
 - `InstancePublicIp` - Public IP address of the EC2 instance
-- `InstanceId` - Instance ID of the EC2 instance
+- `InstanceId` - Instance ID of the EC2 instance (use this with SSM)

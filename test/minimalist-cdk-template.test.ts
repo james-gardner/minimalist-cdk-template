@@ -59,17 +59,34 @@ describe('MinimalistCdkTemplateStack', () => {
     });
   });
 
-  test('Security group allows SSH access', () => {
-    template.hasResourceProperties('AWS::EC2::SecurityGroup', {
-      SecurityGroupIngress: Match.arrayWith([
+  test('EC2 instance has SSM Session Manager permissions', () => {
+    // Verify the instance role has SSM managed policy attached
+    template.hasResourceProperties('AWS::IAM::Role', {
+      ManagedPolicyArns: Match.arrayWith([
         Match.objectLike({
-          IpProtocol: 'tcp',
-          FromPort: 22,
-          ToPort: 22,
-          CidrIp: '0.0.0.0/0',
+          'Fn::Join': Match.arrayWith([
+            Match.arrayWith([
+              Match.stringLikeRegexp('arn:'),
+              Match.stringLikeRegexp(':iam::aws:policy/AmazonSSMManagedInstanceCore'),
+            ]),
+          ]),
         }),
       ]),
     });
+  });
+
+  test('No SSH ingress rule in security group', () => {
+    // Verify no security group with SSH ingress rule exists
+    const securityGroups = template.findResources('AWS::EC2::SecurityGroup');
+    for (const [, sg] of Object.entries(securityGroups)) {
+      const props = sg.Properties;
+      if (props.SecurityGroupIngress) {
+        for (const rule of props.SecurityGroupIngress) {
+          expect(rule.FromPort).not.toBe(22);
+          expect(rule.ToPort).not.toBe(22);
+        }
+      }
+    }
   });
 
   test('Custom instance type can be provided', () => {
@@ -81,25 +98,6 @@ describe('MinimalistCdkTemplateStack', () => {
 
     customTemplate.hasResourceProperties('AWS::EC2::Instance', {
       InstanceType: 't2.small',
-    });
-  });
-
-  test('Custom SSH CIDR can be provided', () => {
-    const customApp = new cdk.App();
-    const customStack = new MinimalistCdkTemplateStack(customApp, 'CustomSshTestStack', {
-      sshCidr: '10.0.0.0/8',
-    });
-    const customTemplate = Template.fromStack(customStack);
-
-    customTemplate.hasResourceProperties('AWS::EC2::SecurityGroup', {
-      SecurityGroupIngress: Match.arrayWith([
-        Match.objectLike({
-          IpProtocol: 'tcp',
-          FromPort: 22,
-          ToPort: 22,
-          CidrIp: '10.0.0.0/8',
-        }),
-      ]),
     });
   });
 
