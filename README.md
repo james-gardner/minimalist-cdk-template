@@ -1,12 +1,12 @@
 # Minimalist CDK Template
 
-AWS CDK TypeScript project that creates a VPC with an EC2 instance and RDS PostgreSQL database for the London region (eu-west-2).
+AWS CDK TypeScript project that creates a VPC with an EC2 instance and RDS PostgreSQL database. Fully parameterized for easy customization.
 
 ## Architecture
 
 This stack creates:
 
-- **VPC** with 2 Availability Zones (required for RDS subnet groups)
+- **VPC** with configurable Availability Zones (default: 2, required for RDS subnet groups)
 - **Public Subnets** with auto-assign public IP
 - **Private Subnets** - isolated, no NAT gateway
 - **EC2 Instance** (default: t3.micro for free tier eligibility) in the public subnet
@@ -25,27 +25,72 @@ This stack creates:
 
 ## Configuration
 
-The stack accepts the following optional props:
+All parameters can be provided via CDK context (command line `-c` flags or `cdk.json`).
 
-### Instance Type
+### Command Line Parameters
 
-The EC2 instance type is parameterized and can be changed:
+Deploy with custom configuration:
 
-```typescript
-new MinimalistCdkTemplateStack(app, 'MinimalistCdkTemplateStack', {
-  instanceType: ec2.InstanceType.of(ec2.InstanceClass.T2, ec2.InstanceSize.SMALL),
-});
+```bash
+# Custom stack name and region
+npx cdk deploy -c stackName=MyAppStack -c region=eu-west-1
+
+# Custom EC2 instance type
+npx cdk deploy -c ec2InstanceClass=T2 -c ec2InstanceSize=SMALL
+
+# Custom RDS configuration
+npx cdk deploy -c rdsInstanceClass=T3 -c rdsInstanceSize=SMALL -c databaseName=mydb -c allocatedStorage=50
+
+# Custom VPC configuration
+npx cdk deploy -c vpcCidr=192.168.0.0/16 -c maxAzs=3
+
+# All parameters combined
+npx cdk deploy \
+  -c stackName=ProductionStack \
+  -c region=eu-west-2 \
+  -c ec2InstanceClass=T3 \
+  -c ec2InstanceSize=MICRO \
+  -c rdsInstanceClass=T3 \
+  -c rdsInstanceSize=MICRO \
+  -c databaseName=appdb \
+  -c allocatedStorage=20 \
+  -c vpcCidr=10.0.0.0/16 \
+  -c maxAzs=2
 ```
 
-### RDS Configuration
+### Available Parameters
 
-The RDS instance class, size, and database name can be customized:
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `stackName` | `MinimalistCdkTemplateStack` | Name of the CloudFormation stack |
+| `region` | `eu-west-2` | AWS region to deploy to |
+| `account` | (from CLI) | AWS account ID |
+| `ec2InstanceClass` | `T3` | EC2 instance class (T2, T3, M5, etc.) |
+| `ec2InstanceSize` | `MICRO` | EC2 instance size (MICRO, SMALL, MEDIUM, etc.) |
+| `rdsInstanceClass` | `T3` | RDS instance class |
+| `rdsInstanceSize` | `MICRO` | RDS instance size |
+| `databaseName` | `appdb` | PostgreSQL database name |
+| `allocatedStorage` | `20` | RDS storage in GB |
+| `vpcCidr` | `10.0.0.0/16` | VPC CIDR block |
+| `maxAzs` | `2` | Maximum number of Availability Zones |
+
+### Programmatic Configuration
+
+When using this as a library:
 
 ```typescript
-new MinimalistCdkTemplateStack(app, 'MinimalistCdkTemplateStack', {
+import * as ec2 from 'aws-cdk-lib/aws-ec2';
+import { MinimalistCdkTemplateStack } from './lib/minimalist-cdk-template-stack';
+
+new MinimalistCdkTemplateStack(app, 'MyStack', {
+  env: { region: 'eu-west-1', account: '123456789012' },
+  instanceType: ec2.InstanceType.of(ec2.InstanceClass.T2, ec2.InstanceSize.SMALL),
   rdsInstanceClass: ec2.InstanceClass.T3,
   rdsInstanceSize: ec2.InstanceSize.SMALL,
   databaseName: 'myCustomDb',
+  allocatedStorage: 50,
+  vpcCidr: '192.168.0.0/16',
+  maxAzs: 3,
 });
 ```
 

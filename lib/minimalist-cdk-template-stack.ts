@@ -27,6 +27,25 @@ export interface MinimalistCdkTemplateStackProps extends cdk.StackProps {
    * @default 'appdb'
    */
   readonly databaseName?: string;
+
+  /**
+   * The allocated storage for RDS in GB.
+   * @default 20
+   */
+  readonly allocatedStorage?: number;
+
+  /**
+   * The VPC CIDR block.
+   * @default '10.0.0.0/16'
+   */
+  readonly vpcCidr?: string;
+
+  /**
+   * The maximum number of Availability Zones to use.
+   * Must be at least 2 for RDS subnet groups.
+   * @default 2
+   */
+  readonly maxAzs?: number;
 }
 
 export class MinimalistCdkTemplateStack extends cdk.Stack {
@@ -49,11 +68,17 @@ export class MinimalistCdkTemplateStack extends cdk.Stack {
     const rdsInstanceClass = props?.rdsInstanceClass ?? ec2.InstanceClass.T3;
     const rdsInstanceSize = props?.rdsInstanceSize ?? ec2.InstanceSize.MICRO;
     const databaseName = props?.databaseName ?? 'appdb';
+    const allocatedStorage = props?.allocatedStorage ?? 20;
 
-    // Create a VPC with 2 AZs (required for RDS subnet groups)
+    // VPC configuration
+    const vpcCidr = props?.vpcCidr ?? '10.0.0.0/16';
+    const maxAzs = props?.maxAzs ?? 2;
+
+    // Create a VPC with configurable AZs (minimum 2 required for RDS subnet groups)
     // The VPC will have public and private subnets in each AZ
     this.vpc = new ec2.Vpc(this, 'Vpc', {
-      maxAzs: 2, // RDS requires at least 2 AZs for the subnet group
+      ipAddresses: ec2.IpAddresses.cidr(vpcCidr),
+      maxAzs: maxAzs, // RDS requires at least 2 AZs for the subnet group
       natGateways: 0, // No NAT Gateway to stay on free tier
       subnetConfiguration: [
         {
@@ -116,8 +141,8 @@ export class MinimalistCdkTemplateStack extends cdk.Stack {
       },
       securityGroups: [rdsSecurityGroup],
       databaseName: databaseName,
-      allocatedStorage: 20, // Minimum for free tier
-      maxAllocatedStorage: 20, // Disable auto-scaling to stay on free tier
+      allocatedStorage: allocatedStorage,
+      maxAllocatedStorage: allocatedStorage, // Disable auto-scaling to stay on free tier
       credentials: rds.Credentials.fromGeneratedSecret('postgres'), // Auto-generate password
       removalPolicy: cdk.RemovalPolicy.DESTROY, // For development - delete DB on stack deletion
       deleteAutomatedBackups: true, // Clean up backups on deletion

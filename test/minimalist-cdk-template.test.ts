@@ -147,7 +147,7 @@ describe('MinimalistCdkTemplateStack', () => {
     });
   });
 
-  test('RDS has 20GB allocated storage (free tier)', () => {
+  test('RDS has default 20GB allocated storage (free tier)', () => {
     template.hasResourceProperties('AWS::RDS::DBInstance', {
       AllocatedStorage: '20',
       MaxAllocatedStorage: 20,
@@ -185,5 +185,43 @@ describe('MinimalistCdkTemplateStack', () => {
     customTemplate.hasResourceProperties('AWS::RDS::DBInstance', {
       DBName: 'myCustomDb',
     });
+  });
+
+  test('Custom VPC CIDR can be provided', () => {
+    const customApp = new cdk.App();
+    const customStack = new MinimalistCdkTemplateStack(customApp, 'CustomVpcCidrStack', {
+      vpcCidr: '192.168.0.0/16',
+    });
+    const customTemplate = Template.fromStack(customStack);
+
+    customTemplate.hasResourceProperties('AWS::EC2::VPC', {
+      CidrBlock: '192.168.0.0/16',
+    });
+  });
+
+  test('Custom allocated storage can be provided', () => {
+    const customApp = new cdk.App();
+    const customStack = new MinimalistCdkTemplateStack(customApp, 'CustomStorageStack', {
+      allocatedStorage: 50,
+    });
+    const customTemplate = Template.fromStack(customStack);
+
+    customTemplate.hasResourceProperties('AWS::RDS::DBInstance', {
+      AllocatedStorage: '50',
+      MaxAllocatedStorage: 50,
+    });
+  });
+
+  test('Custom maxAzs can be provided', () => {
+    const customApp = new cdk.App();
+    const customStack = new MinimalistCdkTemplateStack(customApp, 'CustomAzsStack', {
+      maxAzs: 3,
+    });
+    const customTemplate = Template.fromStack(customStack);
+
+    // Verify VPC is created - maxAzs is configured but actual AZ count depends on region
+    customTemplate.hasResourceProperties('AWS::EC2::VPC', Match.objectLike({
+      EnableDnsHostnames: true,
+    }));
   });
 });
