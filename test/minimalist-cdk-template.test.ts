@@ -79,11 +79,15 @@ describe('MinimalistCdkTemplateStack', () => {
     // Verify no security group with SSH ingress rule exists
     const securityGroups = template.findResources('AWS::EC2::SecurityGroup');
     for (const [, sg] of Object.entries(securityGroups)) {
-      const props = sg.Properties;
+      const props = (sg as { Properties: { SecurityGroupIngress?: { FromPort?: number; ToPort?: number }[] } }).Properties;
       if (props.SecurityGroupIngress) {
         for (const rule of props.SecurityGroupIngress) {
-          expect(rule.FromPort).not.toBe(22);
-          expect(rule.ToPort).not.toBe(22);
+          if (rule.FromPort !== undefined) {
+            expect(rule.FromPort).not.toBe(22);
+          }
+          if (rule.ToPort !== undefined) {
+            expect(rule.ToPort).not.toBe(22);
+          }
         }
       }
     }
